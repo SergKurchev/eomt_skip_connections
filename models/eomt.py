@@ -11,6 +11,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
+import numpy as np
 
 from models.scale_block import ScaleBlock
 
@@ -162,12 +163,24 @@ class EoMT(nn.Module):
         attn_mask = None
         mask_logits_per_layer, class_logits_per_layer = [], []
 
+        total_blocks = len(self.encoder.backbone.blocks)
+        saved_features = {}
+        save_layers_out = np.arange(0, (total_blocks - 2) // 2, 2)
+        layers_in =  total_blocks - save_layers_out[::-1] 
+        target_to_skip = {layers_in[i]: save_layers_out[i] for i in range(1, len(layers_in))}
         for i, block in enumerate(self.encoder.backbone.blocks):
-            if i == len(self.encoder.backbone.blocks) - self.num_blocks:
+            if i   == len(self.encoder.backbone.blocks) - self.num_blocks:
                 x = torch.cat(
                     (self.q.weight[None, :, :].expand(x.shape[0], -1, -1), x), dim=1
                 )
-
+            if i in save_layers_out:
+                saved_features[i] = x.clone()
+            if i in target_to_skip:
+                skip_x = saved_features[target_to_skip[i]]
+                if x.shape[1] > skip_x.shape[1]:
+                    x[:, -skip_x.shape[1]:, :] = x[:, -skip_x.shape[1]:, :] + skip_x
+                else:
+                    x = x + skip_x
             if (
                 self.masked_attn_enabled
                 and i >= len(self.encoder.backbone.blocks) - self.num_blocks
