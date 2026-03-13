@@ -97,7 +97,7 @@ class Transforms(nn.Module):
         return {k: wrap(v[keep], like=v) for k, v in target.items()}
 
     def forward(
-        self, img: Tensor, target: dict[str, Union[Tensor, TVTensor]]
+        self, img: Tensor, target: dict[str, Union[Tensor, TVTensor]], _retries: int = 0
     ) -> tuple[Tensor, dict[str, Union[Tensor, TVTensor]]]:
         img_orig, target_orig = img, target
 
@@ -111,7 +111,17 @@ class Transforms(nn.Module):
 
         valid = target["masks"].flatten(1).any(1)
         if not valid.any():
-            return self(img_orig, target_orig)
+            if _retries >= 10:
+                # Fallback: Just pad and resize carefully to avoid infinite loop
+                img, target = img_orig, target_orig
+                img, target = self.pad(img, target)
+                # Crop top-left to target size
+                img = img[..., :self.img_size[0], :self.img_size[1]]
+                target["masks"] = target["masks"][..., :self.img_size[0], :self.img_size[1]]
+                valid = target["masks"].flatten(1).any(1)
+                target = self._filter(target, valid)
+                return img, target
+            return self(img_orig, target_orig, _retries=_retries + 1)
 
         target = self._filter(target, valid)
 
