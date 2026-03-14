@@ -24,12 +24,14 @@ class EoMT(nn.Module):
         num_q,
         num_blocks=4,
         masked_attn_enabled=True,
+        use_skip_connections=True,
     ):
         super().__init__()
         self.encoder = encoder
         self.num_q = num_q
         self.num_blocks = num_blocks
         self.masked_attn_enabled = masked_attn_enabled
+        self.use_skip_connections = use_skip_connections
 
         self.register_buffer("attn_mask_probs", torch.ones(num_blocks))
 
@@ -173,9 +175,9 @@ class EoMT(nn.Module):
                 x = torch.cat(
                     (self.q.weight[None, :, :].expand(x.shape[0], -1, -1), x), dim=1
                 )
-            if i in save_layers_out:
+            if self.use_skip_connections and i in save_layers_out:
                 saved_features[i] = x.clone()
-            if i in target_to_skip:
+            if self.use_skip_connections and i in target_to_skip:
                 skip_x = saved_features[target_to_skip[i]]
                 if x.shape[1] > skip_x.shape[1]:
                     x[:, -skip_x.shape[1]:, :] = x[:, -skip_x.shape[1]:, :] + skip_x
