@@ -158,6 +158,43 @@ class LightningCLI(cli.LightningCLI):
 
 
 def cli_main():
+    import sys
+    
+    # Безопасно извлекаем и удаляем наш кастомный флаг
+    use_vis = False
+    if "--vis" in sys.argv:
+        idx = sys.argv.index("--vis")
+        sys.argv.pop(idx) # Удаляем флаг "--vis"
+        # Проверяем, идет ли за ним значение (True, 1)
+        if len(sys.argv) > idx and sys.argv[idx].lower() in ['true', '1']:
+            sys.argv.pop(idx) # Удаляем значение
+        use_vis = True
+
+    # Дефолтные коллбеки
+    callbacks = [
+        ModelSummary(max_depth=3),
+        LearningRateMonitor(logging_interval="epoch"),
+    ]
+
+    # Если запрошена визуализация, добавляем сохранение и графики
+    if use_vis:
+        from lightning.pytorch.callbacks import ModelCheckpoint
+        # Если запускаем локальный тест, импортируем локально, иначе из пакета
+        try:
+            from training.kaggle_vis_callback import KaggleVisCallback
+        except ImportError:
+            from kaggle_vis_callback import KaggleVisCallback
+
+        checkpoint_callback = ModelCheckpoint(
+            dirpath='./checkpoints/', # Локальная папка (в Kaggle можно поменять на /kaggle/working/checkpoints/)
+            filename='best-model-epoch{epoch:02d}-pq{metrics/val_pq_all:.4f}',
+            monitor='metrics/val_pq_all',
+            mode='max',
+            save_top_k=1,
+            auto_insert_metric_name=False
+        )
+        callbacks.extend([checkpoint_callback, KaggleVisCallback()])
+
     LightningCLI(
         LightningModule,
         LightningDataModule,
@@ -168,16 +205,12 @@ def cli_main():
         trainer_defaults={
             "precision": "16-mixed",
             "enable_model_summary": False,
-            "callbacks": [
-                ModelSummary(max_depth=3),
-                LearningRateMonitor(logging_interval="epoch"),
-            ],
+            "callbacks": callbacks,
             "devices": 1,
             "gradient_clip_val": 0.01,
             "gradient_clip_algorithm": "norm",
         },
     )
-
 
 if __name__ == "__main__":
     cli_main()

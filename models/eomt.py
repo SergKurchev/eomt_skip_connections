@@ -168,7 +168,7 @@ class EoMT(nn.Module):
         total_blocks = len(self.encoder.backbone.blocks)
         saved_features = {}
         save_layers_out = np.arange(0, (total_blocks - 2) // 2, 2)
-        layers_in =  total_blocks - save_layers_out[::-1] 
+        layers_in =  (total_blocks - 1) - save_layers_out[::-1]
         target_to_skip = {layers_in[i]: save_layers_out[i] for i in range(1, len(layers_in))}
         for i, block in enumerate(self.encoder.backbone.blocks):
             if i   == len(self.encoder.backbone.blocks) - self.num_blocks:

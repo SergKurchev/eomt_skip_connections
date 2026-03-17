@@ -296,6 +296,7 @@ def build_original_model(config):
         num_q=config["num_q"],
         num_blocks=config["num_blocks"],
         masked_attn_enabled=config["masked_attn_enabled"],
+        use_skip_connections=False,
     )
     return model
 

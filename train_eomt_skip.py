@@ -62,7 +62,7 @@ print("Imports ready.")
 CONFIG = {
     # --- Mode ---
     "mode": "pretrained",          # "pretrained" (load EoMT-S weights) or "scratch"
-    "use_skip_connections": True,  # Toggle for skip connections
+    "use_skip_connections": True,  # Set to True for skip connections, False for original EoMT architecture
     "resume_from": None,           # Path to checkpoint .pt file, or None
 
     # --- Paths ---
@@ -122,8 +122,13 @@ CONFIG = {
     "stuff_classes": list(range(80, 133)),
 }
 
+# Adjust output directory based on skip connections to keep results separate
+_config_suffix = "_skip" if CONFIG["use_skip_connections"] else "_original"
+CONFIG["output_dir"] = os.path.join(CONFIG["output_dir"], f"run{_config_suffix}")
+
 os.makedirs(CONFIG["output_dir"], exist_ok=True)
-print("Config loaded. Mode:", CONFIG["mode"])
+print("Config loaded. Mode:", CONFIG["mode"], "| Skip Connections:", CONFIG["use_skip_connections"])
+print("Checkpoints will be saved to:", CONFIG["output_dir"])
 
 # %% [markdown]
 # ## 3. Download COCO 2017 Dataset
