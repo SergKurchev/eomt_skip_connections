@@ -16,6 +16,9 @@ class KaggleVisCallback(Callback):
     def __init__(self, output_dir='./result_graphs'):
         super().__init__()
         self.output_dir = output_dir
+
+        os.makedirs(self.output_dir, exist_ok=True)
+        
         self.train_step_losses = []
         self.epoch_train_losses = []
         self.epoch_val_pqs = []
