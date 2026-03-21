@@ -108,6 +108,8 @@ class KaggleVisCallback(Callback):
 
         # Формируем батч для модели
         batch_imgs = [img.to(pl_module.device) for img in self.cached_val_imgs]
+        # Сохраняем индивидуальные размеры ВСЕХ 4-х картинок
+        img_sizes = [img.shape[-2:] for img in batch_imgs] 
         
         with torch.no_grad():
             transformed_imgs = pl_module.resize_and_pad_imgs_instance_panoptic(batch_imgs)
@@ -116,26 +118,34 @@ class KaggleVisCallback(Callback):
             mask_logits = mask_logits_per_layer[-1]
             class_logits = class_logits_per_layer[-1]
             
-            # Возвращаем размер к исходному (для простоты берем размер первой картинки)
-            img_size = self.cached_val_imgs[0].shape[-2:]
-            mask_logits = F.interpolate(mask_logits, img_size, mode="bilinear")
+            # 1. Интерполируем до размера модели (640x640)
+            mask_logits = F.interpolate(mask_logits, pl_module.img_size, mode="bilinear")
+            
+            # 2. Используем родной метод модели, чтобы аккуратно отрезать паддинги и вернуть оригинальные размеры!
+            mask_logits_list = pl_module.revert_resize_and_pad_logits_instance_panoptic(mask_logits, img_sizes)
 
+            # Получаем финальные предсказания
             preds = pl_module.to_per_pixel_preds_panoptic(
-                mask_logits, class_logits, pl_module.stuff_classes,
+                mask_logits_list, class_logits, pl_module.stuff_classes,
                 pl_module.mask_thresh, pl_module.overlap_thresh
             )
 
         for i in range(n_imgs):
             img = self.cached_val_imgs[i]
             target = self.cached_val_targets[i]
+            
+            # EOMT возвращает маску (H, W, 2), где 0-й канал это классы, а 1-й это инстансы
             pred_sem = preds[i][:, :, 0].cpu()
 
+            # Текущий размер ИМЕННО ЭТОЙ картинки
+            current_img_size = img.shape[-2:]
+
             # Ground Truth
-            gt_sem = torch.zeros(img_size, dtype=torch.long)
+            gt_sem = torch.zeros(current_img_size, dtype=torch.long)
             for mask, label in zip(target['masks'], target['labels']):
                 gt_sem[mask > 0] = label.cpu()
 
-            # Денормализация
+            # Денормализация картинки
             img_np = img.permute(1, 2, 0).numpy()
             img_np = (img_np * [0.229, 0.224, 0.225]) + [0.485, 0.456, 0.406]
             img_np = np.clip(img_np, 0, 1)
