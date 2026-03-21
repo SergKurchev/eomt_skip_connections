@@ -128,7 +128,7 @@ class KaggleVisCallback(Callback):
         for i in range(n_imgs):
             img = self.cached_val_imgs[i]
             target = self.cached_val_targets[i]
-            pred_sem = preds[i]["semantic"].cpu()
+            pred_sem = preds[i][:, :, 0].cpu()
 
             # Ground Truth
             gt_sem = torch.zeros(img_size, dtype=torch.long)
