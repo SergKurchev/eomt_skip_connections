@@ -147,7 +147,8 @@ class KaggleVisCallback(Callback):
 
             # Денормализация картинки
             img_np = img.permute(1, 2, 0).numpy()
-            img_np = (img_np * [0.229, 0.224, 0.225]) + [0.485, 0.456, 0.406]
+            img_np = img_np / 255.0
+            # (img_np * [0.229, 0.224, 0.225]) + [0.485, 0.456, 0.406]
             img_np = np.clip(img_np, 0, 1)
 
             axes[0, i].imshow(img_np)
