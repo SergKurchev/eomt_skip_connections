@@ -13,7 +13,7 @@ except ImportError:
     IN_JUPYTER = False
 
 class KaggleVisCallback(Callback):
-    def __init__(self, output_dir='./'):
+    def __init__(self, output_dir='./result_graphs'):
         super().__init__()
         self.output_dir = output_dir
         self.train_step_losses = []
