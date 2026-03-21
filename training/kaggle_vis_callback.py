@@ -59,18 +59,36 @@ class KaggleVisCallback(Callback):
             if self.step_plot_handle: self.step_plot_handle.update(fig)
             plt.close(fig)
 
-    def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0):
-        if not trainer.is_global_zero: return
+    def on_validation_epoch_start(self, trainer, pl_module):
+        # ЗАЩИТА: Только главная видеокарта и только после Sanity Check
+        if trainer.sanity_checking or not trainer.is_global_zero: 
+            return
 
-        if len(self.cached_val_imgs) < 4:
-            imgs, targets = batch
-            for img, tgt in zip(imgs, targets):
-                if len(self.cached_val_imgs) < 4:
-                    self.cached_val_imgs.append(img.cpu())
-                    self.cached_val_targets.append(tgt)
+        # Если мы еще не закэшировали картинки (на первой реальной эпохе)
+        if len(self.cached_val_imgs) == 0:
+            # Стучимся напрямую в датасет, минуя батчи и шаффлинг DDP
+            val_dataloader = trainer.val_dataloaders
+            if isinstance(val_dataloader, list):
+                val_dataloader = val_dataloader[0]
+            dataset = val_dataloader.dataset
+            
+            # Строго берем индексы 0, 1, 2, 3
+            for i in range(min(4, len(dataset))):
+                img, tgt = dataset[i]
+                self.cached_val_imgs.append(img.cpu())
+                
+                # Безопасно переносим таргеты на CPU
+                tgt_cpu = {}
+                for k, v in tgt.items():
+                    if isinstance(v, torch.Tensor):
+                        tgt_cpu[k] = v.cpu()
+                    else:
+                        tgt_cpu[k] = v
+                self.cached_val_targets.append(tgt_cpu)
 
     def on_validation_epoch_end(self, trainer, pl_module):
-        if not trainer.is_global_zero: return
+        if trainer.sanity_checking or not trainer.is_global_zero: 
+            return
 
         if trainer.num_training_batches > 0 and len(self.train_step_losses) > 0:
             epoch_train_loss = np.mean(self.train_step_losses[-trainer.num_training_batches:])
@@ -97,6 +115,8 @@ class KaggleVisCallback(Callback):
 
         if len(self.cached_val_imgs) > 0:
             self._visualize_predictions(pl_module, trainer.current_epoch, pq_metric)
+            # Внимание: мы БОЛЬШЕ НЕ ОЧИЩАЕМ кэш здесь!
+            # Эти 4 картинки останутся в памяти (это копейки МБ) на все 24 эпохи.
 
     @staticmethod
     def create_overlay(img_np, sem, inst, mapping, alpha=0.7):
@@ -104,14 +124,12 @@ class KaggleVisCallback(Callback):
         h, w = sem.shape
         out = img_np.copy()
         
-        # 1. Накладываем цвет с прозрачностью alpha
         for s in np.unique(sem):
             color = mapping.get(s)
-            if color is not None: # Пропускаем фон/void классы
+            if color is not None:
                 mask = (sem == s)
                 out[mask] = out[mask] * (1 - alpha) + np.array(color) * alpha
 
-        # 2. Вычисляем границы между разными объектами (инстансами)
         combined = sem.astype(np.int64) * 100000 + inst.astype(np.int64)
         border = np.zeros((h, w), dtype=bool)
         border[1:, :] |= combined[1:, :] != combined[:-1, :]
@@ -119,14 +137,11 @@ class KaggleVisCallback(Callback):
         border[:, 1:] |= combined[:, 1:] != combined[:, :-1]
         border[:, :-1] |= combined[:, 1:] != combined[:, :-1]
         
-        # 3. Делаем границы черными
         out[border] = [0, 0, 0]
-        
         return out
 
     def _visualize_predictions(self, pl_module, epoch, pq_metric):
         n_imgs = len(self.cached_val_imgs)
-        # Сетка: N строк x 3 колонки (Input, Pred Overlay, Target Overlay)
         fig, axes = plt.subplots(n_imgs, 3, figsize=(15, 5 * n_imgs))
         if n_imgs == 1: axes = [axes]
         fig.suptitle(f'Epoch: {epoch} | Val PQ achieved: {pq_metric*100:.2f}%', fontsize=16, fontweight='bold')
@@ -159,7 +174,6 @@ class KaggleVisCallback(Callback):
             target_seg = pl_module.to_per_pixel_targets_panoptic([target])[0].cpu().numpy()
             sem_target, inst_target = target_seg[..., 0], target_seg[..., 1]
 
-            # Создаем цветовую палитру (None для фона/неразмеченных зон)
             all_ids = np.union1d(np.unique(sem_pred), np.unique(sem_target))
             mapping = {
                 s: (
@@ -169,19 +183,13 @@ class KaggleVisCallback(Callback):
                 for j, s in enumerate(all_ids)
             }
 
-            # Денормализация исходной картинки (универсальная)
             img_np = img.permute(1, 2, 0).cpu().numpy()
-            if img_np.min() < 0 or img_np.max() > 1.0: # Если была ImageNet нормализация
-                img_np = (img_np * [0.229, 0.224, 0.225]) + [0.485, 0.456, 0.406]
-            elif img_np.max() > 2.0: # Если 0-255
-                img_np = img_np / 255.0
+            img_np = img_np / 255.0
             img_np = np.clip(img_np, 0, 1)
 
-            # Накладываем маски с alpha=0.7 поверх оригинальной картинки
             vis_pred = self.create_overlay(img_np, sem_pred, inst_pred, mapping, alpha=0.7)
             vis_target = self.create_overlay(img_np, sem_target, inst_target, mapping, alpha=0.7)
 
-            # Отрисовка
             axes[i][0].imshow(img_np)
             if i == 0: axes[i][0].set_title('Original Input', fontweight='bold')
             axes[i][0].axis('off')
