@@ -86,7 +86,7 @@ def _should_check_val_fx(self: _TrainingEpochLoop, data_fetcher: _DataFetcher) -
 
 class PrintLogCallback(Callback):
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
-        if trainer.global_step % 10000 == 0:
+        if trainer.global_step % 100 == 0:
             print(f"Epoch: {trainer.current_epoch} | Step: {trainer.global_step}")
 
 
