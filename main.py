@@ -23,6 +23,9 @@ from datasets.lightning_data_module import LightningDataModule
 from lightning.pytorch.callbacks import Callback
 from lightning.pytorch.utilities.rank_zero import rank_zero_info
 
+import cv2
+cv2.setNumThreads(0)
+
 
 # Suppress PyTorch FX warnings for DINOv3 models
 import os
