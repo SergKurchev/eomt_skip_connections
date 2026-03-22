@@ -148,11 +148,11 @@ class EoMT(nn.Module):
         ] = (
             interpolated > 0
         )
+        
+        idx = int(i - len(self.encoder.backbone.blocks) + self.num_blocks)
         attn_mask = self._disable_attn_mask(
             attn_mask,
-            self.attn_mask_probs[
-                i - len(self.encoder.backbone.blocks) + self.num_blocks
-            ],
+            self.attn_mask_probs[idx],
         )
         return attn_mask
 
@@ -174,7 +174,7 @@ class EoMT(nn.Module):
         saved_features = {}
         save_layers_out = self.save_layers_out
         target_to_skip = self.target_to_skip
-        
+
         for i, block in enumerate(self.encoder.backbone.blocks):
             if i   == len(self.encoder.backbone.blocks) - self.num_blocks:
                 x = torch.cat(
