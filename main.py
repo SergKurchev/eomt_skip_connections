@@ -198,9 +198,10 @@ def cli_main():
         backup_callback = ModelCheckpoint(
             dirpath='./checkpoints/',
             filename='backup-step-{step:06d}',
-            every_n_train_steps=10000, 
+            every_n_train_steps=500,
             save_top_k=2,            
-            monitor=None             
+            monitor='global_step', 
+            mode='max'               
         )
 
         callbacks.extend([checkpoint_callback, backup_callback, KaggleVisCallback()])
