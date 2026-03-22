@@ -20,6 +20,8 @@ from lightning.pytorch.loops.fetchers import _DataFetcher, _DataLoaderIterDataFe
 
 from training.lightning_module import LightningModule
 from datasets.lightning_data_module import LightningDataModule
+from lightning.pytorch.callbacks import Callback
+
 
 # Suppress PyTorch FX warnings for DINOv3 models
 import os
@@ -80,6 +82,12 @@ def _should_check_val_fx(self: _TrainingEpochLoop, data_fetcher: _DataFetcher) -
             ) % self.trainer.val_check_batch == 0 and not self._should_accumulate()
 
     return is_val_check_batch
+
+
+class PrintLogCallback(Callback):
+    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+        if trainer.global_step % 10000 == 0:
+            print(f"Epoch: {trainer.current_epoch} | Step: {trainer.global_step}")
 
 
 class LightningCLI(cli.LightningCLI):
@@ -204,7 +212,7 @@ def cli_main():
             mode='max'               
         )
 
-        callbacks.extend([checkpoint_callback, backup_callback, KaggleVisCallback()])
+        callbacks.extend([checkpoint_callback, KaggleVisCallback(), backup_callback, PrintLogCallback()])
 
     LightningCLI(
         LightningModule,
