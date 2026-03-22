@@ -21,6 +21,7 @@ from lightning.pytorch.loops.fetchers import _DataFetcher, _DataLoaderIterDataFe
 from training.lightning_module import LightningModule
 from datasets.lightning_data_module import LightningDataModule
 from lightning.pytorch.callbacks import Callback
+from lightning.pytorch.utilities.rank_zero import rank_zero_info
 
 
 # Suppress PyTorch FX warnings for DINOv3 models
@@ -86,8 +87,14 @@ def _should_check_val_fx(self: _TrainingEpochLoop, data_fetcher: _DataFetcher) -
 
 class PrintLogCallback(Callback):
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
-        if trainer.global_step % 100 == 0:
-            print(f"Epoch: {trainer.current_epoch} | Step: {trainer.global_step}")
+        if trainer.global_step % 50 == 0:
+            msg = f"Epoch: {trainer.current_epoch} | Step: {trainer.global_step}"
+            
+            rank_zero_info(msg)
+            
+            if trainer.is_global_zero:
+                with open("/kaggle/working/training_progress.txt", "a", encoding="utf-8") as f:
+                    f.write(msg + "\n")
 
 
 class LightningCLI(cli.LightningCLI):
