@@ -186,14 +186,24 @@ def cli_main():
             from kaggle_vis_callback import KaggleVisCallback
 
         checkpoint_callback = ModelCheckpoint(
-            dirpath='./checkpoints/', # Локальная папка (в Kaggle можно поменять на /kaggle/working/checkpoints/)
+            dirpath='./checkpoints/',
             filename='best-model-epoch{epoch:02d}-pq{metrics/val_pq_all:.4f}',
             monitor='metrics/val_pq_all',
             mode='max',
-            save_top_k=1,
+            save_top_k=2,
+            save_last=True,
             auto_insert_metric_name=False
         )
-        callbacks.extend([checkpoint_callback, KaggleVisCallback()])
+
+        backup_callback = ModelCheckpoint(
+            dirpath='./checkpoints/',
+            filename='backup-step-{step:06d}',
+            every_n_train_steps=10000, 
+            save_top_k=2,            
+            monitor=None             
+        )
+
+        callbacks.extend([checkpoint_callback, backup_callback, KaggleVisCallback()])
 
     LightningCLI(
         LightningModule,
