@@ -55,6 +55,12 @@ class EoMT(nn.Module):
             *[ScaleBlock(self.encoder.backbone.embed_dim) for _ in range(num_upscale)],
         )
 
+        total_blocks = len(self.encoder.backbone.blocks)
+        save_layers = list(range(0, (total_blocks - 2) // 2, 2))
+        layers_in = [(total_blocks - 1) - val for val in reversed(save_layers)]
+        self.target_to_skip = {layers_in[i]: save_layers[i] for i in range(1, len(layers_in))}
+        self.save_layers_out = save_layers
+
     def _predict(self, x: torch.Tensor):
         q = x[:, : self.num_q, :]
 
@@ -165,11 +171,10 @@ class EoMT(nn.Module):
         attn_mask = None
         mask_logits_per_layer, class_logits_per_layer = [], []
 
-        total_blocks = len(self.encoder.backbone.blocks)
         saved_features = {}
-        save_layers_out = list(range(0, (total_blocks - 2) // 2, 2))
-        layers_in = [(total_blocks - 1) - val for val in reversed(save_layers_out)]
-        target_to_skip = {layers_in[i]: save_layers_out[i] for i in range(1, len(layers_in))}
+        save_layers_out = self.save_layers_out
+        target_to_skip = self.target_to_skip
+        
         for i, block in enumerate(self.encoder.backbone.blocks):
             if i   == len(self.encoder.backbone.blocks) - self.num_blocks:
                 x = torch.cat(
