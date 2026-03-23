@@ -204,7 +204,7 @@ def cli_main():
             filename='backup-step-{step:06d}',
             every_n_train_steps=500,
             save_top_k=2,            
-            monitor='global_step', 
+            monitor='step', 
             mode='max'               
         )
 
