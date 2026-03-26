@@ -56,9 +56,17 @@ class EoMT(nn.Module):
         )
 
         total_blocks = len(self.encoder.backbone.blocks)
+        
         save_layers = list(range(0, (total_blocks - 2) // 2, 2))
-        layers_in = [(total_blocks - 1) - val for val in reversed(save_layers)]
-        self.target_to_skip = {layers_in[i]: save_layers[i] for i in range(1, len(layers_in))}
+        
+        layers_in = sorted([(total_blocks - 1) - val for val in save_layers])
+        
+        target_to_skip_full = dict(zip(layers_in, reversed(save_layers)))
+        
+        layers_in_to_keep = layers_in[1:]
+        
+        self.target_to_skip = {k: target_to_skip_full[k] for k in layers_in_to_keep}
+        
         self.save_layers_out = save_layers
 
     def _predict(self, x: torch.Tensor):
